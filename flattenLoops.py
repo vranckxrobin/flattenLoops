@@ -57,8 +57,6 @@ class FlattenPart:
                        None))  # programstep of this case (tmpCaseCount)
 
     def handleWhileCase(self, block):
-
-        # TODO if brackets not on corect indent and is this even a problem?
         self.currentCaseNumber = self.currentCaseNumber + 1
         nextInstruction = self.currentCaseNumber
         self.transformWhileBodyToCases(block, self.caseNumber)
@@ -80,8 +78,6 @@ class FlattenPart:
 
     def handleIfCase(self, block):
         saveSelf = copy.deepcopy(self)
-        # self.handleTrueCaseOfIf(block)
-        # self.handleFalseCaseOfIf(block)
         self.currentCaseNumber += 1
         self.handleIfBody(block, 'iftrue')
         self.handleIfBody(block, 'iffalse')
@@ -96,15 +92,13 @@ class FlattenPart:
         self.cases = saveSelf.cases
         self.returnToCase = saveSelf.returnToCase
         self.caseNumber = saveSelf.caseNumber
-        # self.ofset = saveSelf.ofset
 
         self.returnToCase = returnToCase
         self.callsFunctionNotInFile = False
-        # trueCase = self.handleTrueCaseOfIf(block)
+
         self.currentCaseNumber += 1
         trueCase = self.handleIfBody(block, 'iftrue')
         self.returnToCase = saveSelf.returnToCase
-        # falseCase = self.handleFalseCaseOfIf(block)
         falseCase = self.handleIfBody(block, 'iffalse')
 
         if falseCase is None and not self.callsFunctionNotInFile:
@@ -127,16 +121,12 @@ class FlattenPart:
         returnToCase = (
             self.returnToCase if self.returnToCase != 0 else self.currentCaseNumber
         )
-        temp = [
-            block,
-            c_ast.Assignment(
-                "=",
-                c_ast.ID("programStep", None),
-                c_ast.Constant("int", str(returnToCase), None),
-                None,
-            ),
-        ]
-        temp.append(c_ast.Break(None))
+        temp = [block, c_ast.Assignment(
+            "=",
+            c_ast.ID("programStep", None),
+            c_ast.Constant("int", str(returnToCase), None),
+            None,
+        ), c_ast.Break(None)]
         self.cases.append(
             c_ast.Case(c_ast.Constant("int", str(self.caseNumber), None), temp,
                        None))
@@ -257,7 +247,7 @@ class FlattenLoop:
         self.newBlockItems.append(c_ast.While(c_ast.ID("run", None), body, None))
 
     def closeCaseIfOpen(self):
-        if self.case != []:
+        if self.case:
             self.case.append(c_ast.Assignment("=", c_ast.ID("programStep", None),
                                               c_ast.Constant("int", str(self.caseCount + 1), None),
                                               None))  # point to what is outside the loop (tmpCaseCount+ 2)

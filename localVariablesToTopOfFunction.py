@@ -9,15 +9,12 @@
 # License: BSD
 # -----------------------------------------------------------------
 import sys
+from pycparser import c_ast
 
 # This is not required if you've installed pycparser into
 # your site-packages/ with setup.py
 #
-
 sys.path.extend(['.', '..'])
-
-from pycparser import c_ast
-
 declerations = []
 
 
@@ -26,7 +23,7 @@ def getDefaultValue(type):
     return c_ast.Constant('string', "\"\"")
 
 
-def typesForBlockItems(block): #TODO add switch
+def typesForBlockItems(block):  # TODO add switch
     match type(block):
         case c_ast.Decl:
             global declerations
@@ -39,53 +36,37 @@ def typesForBlockItems(block): #TODO add switch
             return c_ast.DoWhile(block.cond, blockItemsLoop(getattr(getattr(block, 'stmt', None), 'block_items', [])),
                                  block.coord)
         case c_ast.If:
-            ifblock = c_ast.If(block.cond, None, None, block.coord)
-            if c_ast.Compound == type(block.iffalse):
-                ifblock.iffalse = c_ast.Compound(
-                    blockItemsLoop(getattr(getattr(block, 'iffalse', None), 'block_items', [])), block.coord)
-            elif c_ast.If == type(block.iffalse):
-                ifblock.iffalse = typesForBlockItems(block.iffalse)
-            else:
-                ifblock.iffalse = block.iffalse
-            if c_ast.Compound == type(block.iftrue):
-                ifblock.iftrue = c_ast.Compound(
-                    blockItemsLoop(getattr(getattr(block, 'iftrue', None), 'block_items', [])), block.coord)
-            elif c_ast.If == type(block.iftrue):
-                ifblock.iftrue = typesForBlockItems(block.iftrue)
-            else:
-                ifblock.iftrue = block.iftrue
-            return ifblock
+            return c_ast.If(block.cond, handleIfBody(block, 'iftrue'), handleIfBody(block, 'iffalse'), block.coord)
         case _:
             return block
 
 
+def handleIfBody(block, ifCaseString):
+    if isinstance(getattr(block, ifCaseString, None), c_ast.Compound):
+        return c_ast.Compound(
+            blockItemsLoop(getattr(getattr(block, ifCaseString, None), 'block_items', [])), block.coord)
+    elif isinstance(getattr(block, ifCaseString, None), c_ast.If):
+        return typesForBlockItems(getattr(block, ifCaseString, None))
+    else:
+        return getattr(block, ifCaseString, None)
+
+
 def blockItemsLoop(block_items):
-    newBlockItems = c_ast.Compound([], None)
-    for block in block_items:
-        newBlockItems.block_items.append(typesForBlockItems(block))
-    return newBlockItems
+    return c_ast.Compound([typesForBlockItems(block) for block in block_items], None)
 
 
 def allLocalVariablesAtTopOfFunction(ast):
-    newAst = c_ast.FileAST([], ast.coord)
+    functions = []
     for funcDef in ast.ext:
-        block_items = getattr(getattr(funcDef, 'body', None), 'block_items', [])
-        lastDecleration = 0
-        lastFound = False
-        newBody = c_ast.Compound([], funcDef.body.coord)
+        funcBody = getattr(getattr(funcDef, 'body', None), 'block_items', []) #TODO maybe replace with a lambda function
+
         global declerations
         declerations = []
-        for block in block_items:
-            if lastFound:
-                newBody.block_items.append(typesForBlockItems(block))
-            elif c_ast.Decl != type(block):
-                newBody.block_items.append(typesForBlockItems(block))
-                lastFound = True
-            else:
-                newBody.block_items.append(block)
-                lastDecleration += 1
-        for declaration in declerations:
-            newBody.block_items.insert(lastDecleration, declaration)
-        newFuncDef = c_ast.FuncDef(funcDef.decl, funcDef.param_decls, newBody, funcDef.coord)
-        newAst.ext.append(newFuncDef)
-    return newAst
+
+        newBody = [typesForBlockItems(block) if c_ast.Decl != type(block) else block for block in funcBody]
+        lastDecleration = next((i for i, x in enumerate(funcBody) if c_ast.Decl == type(x)), 0)
+        newBody = c_ast.Compound(newBody[:lastDecleration] + declerations + newBody[lastDecleration:], None)
+
+        newFuncDef = c_ast.FuncDef(funcDef.decl, funcDef.param_decls, newBody, None)
+        functions.append(newFuncDef)
+    return c_ast.FileAST(functions, ast.coord)
