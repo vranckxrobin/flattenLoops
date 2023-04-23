@@ -76,15 +76,14 @@ def allLocalVariablesAtTopOfFunction(ast):
         global declerations
         declerations = []
         for block in block_items:
-            if not lastFound:
-                if c_ast.Decl != type(block):
-                    newBody.block_items.append(typesForBlockItems(block))
-                    lastFound = True
-                else:
-                    newBody.block_items.append(block)
-                    lastDecleration += 1
-            else:
+            if lastFound:
                 newBody.block_items.append(typesForBlockItems(block))
+            elif c_ast.Decl != type(block):
+                newBody.block_items.append(typesForBlockItems(block))
+                lastFound = True
+            else:
+                newBody.block_items.append(block)
+                lastDecleration += 1
         for declaration in declerations:
             newBody.block_items.insert(lastDecleration, declaration)
         newFuncDef = c_ast.FuncDef(funcDef.decl, funcDef.param_decls, newBody, funcDef.coord)

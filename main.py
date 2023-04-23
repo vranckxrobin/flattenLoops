@@ -14,7 +14,7 @@ class FuncDefVisitor(c_ast.NodeVisitor):
         return self.nodes
 
     def visit_FuncDef(self, node):
-        print('%s at %s' % (node.decl.name, node.decl.coord))
+        print(f'{node.decl.name} at {node.decl.coord}')
         self.nodes.append(node)
 
 def extractIncludes(filename):
@@ -49,9 +49,8 @@ def ASTToCfile(ast, filename,function):
     if '#include <stdbool.h>\n' not in includes:
         includes += '#include <stdbool.h>\n'
 
-    f = open("flatten.c", "w")
-    f.write(includes + codeWithoutIncludes)
-    f.close()
+    with open("flatten2.c", "w") as f:
+        f.write(includes + codeWithoutIncludes)
 
 
 if __name__ == "__main__":

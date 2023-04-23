@@ -53,17 +53,16 @@ class InlineFunctions:
             if type(block) == c_ast.Decl:
                 if not self.isInOldDeclerations(block):
                     self.newDeclerations.append(block)
-                else:
-                    if block.name != 'run' and block.name != 'programStep':
-                        self.replaceVariableAndDeclare(block)
+                elif block.name not in ['run', 'programStep']:
+                    self.replaceVariableAndDeclare(block)
 
     def blockReplaceDeclName(self, block, name):
         if hasattr(block, 'declname'):
             block.declname = name
-            return block
         else:
             block.type = self.blockReplaceDeclName(block.type, name)
-            return block
+
+        return block
 
     def replaceVariableAndDeclare(self, block):
         name = block.name
@@ -77,19 +76,13 @@ class InlineFunctions:
         self.replaceVariable.append(DeclAndReplaceName(block.name, name))
 
     def isInOldDeclerations(self, block):
-        for decl in self.oldDeclerations:
-            if decl.name == block.name:
-                return True
-        return False
+        return any(decl.name == block.name for decl in self.oldDeclerations)
 
     def isInOldOrNewDeclerations(self, name):
         for decl in self.oldDeclerations:
             if decl.name == name:
                 return True
-        for decl in self.newDeclerations:
-            if decl.name == name:
-                return True
-        return False
+        return any(decl.name == name for decl in self.newDeclerations)
 
     # TODO make it possible for multiple functions calls (now only one)
     # TODO inline multiple functions  now start with (inlining parseelt of minixml)
@@ -112,9 +105,7 @@ class InlineFunctions:
     # TODO check todos inlineFunctions maybe needed here
     def findFunctionCallsAndInlineOtherFunctions(self, ast, func, function):
         self.returnTypeOfFunction = func.decl.type.type.type.names[0]
-        block_items = []
-        for block in func.body.block_items:
-            block_items.append(self.findCalls(block))
+        block_items = [self.findCalls(block) for block in func.body.block_items]
         tmpFunc = c_ast.FuncDef(func.decl, func.param_decls, c_ast.Compound(block_items))
         return self.inlineFunction(tmpFunc)
 
@@ -137,17 +128,17 @@ class InlineFunctions:
     def findCalls(self, block):
         match type(block):
             case c_ast.FuncCall:  # TODO call this class again for the other function to flatten and add it to this one
-                if self.functionInFile(block.name.name):
-                    name = self.appendDecleration(block.name.name)
-                    self.changeCall(block.name.name, name, block.args.exprs)
-                    return c_ast.ID(name)
-                else:
+                if not self.functionInFile(block.name.name):
                     return block
+                name = self.appendDecleration(block.name.name)
+                self.changeCall(block.name.name, name, block.args.exprs)
+                return c_ast.ID(name)
             case c_ast.While:
                 cond = self.findCalls(block.cond)
-                block_items = []
-                for tempBlock in block.stmt.block_items:
-                    block_items.append(self.findCalls(tempBlock))
+                block_items = [
+                    self.findCalls(tempBlock)
+                    for tempBlock in block.stmt.block_items
+                ]
                 stmt = c_ast.Compound(block_items)
                 return c_ast.While(cond, stmt)
             case c_ast.If:
@@ -155,44 +146,55 @@ class InlineFunctions:
                 block_items_true_case = []
                 block_items_false_case = []
                 if c_ast.Compound == type(block.iftrue):
-                    for tempBlock in block.iftrue.block_items:
-                        block_items_true_case.append(self.findCalls(tempBlock))
+                    block_items_true_case.extend(
+                        self.findCalls(tempBlock)
+                        for tempBlock in block.iftrue.block_items
+                    )
                 elif c_ast.If == type(block.iftrue):
                     block_items_true_case.append(self.findCalls(block.iftrue))
                 else:
                     block_items_true_case.append(self.findCalls(block.iftrue))
 
                 if c_ast.Compound == type(block.iffalse):
-                    for tempBlock in block.iffalse.block_items:
-                        block_items_false_case.append(self.findCalls(tempBlock))
+                    block_items_false_case.extend(
+                        self.findCalls(tempBlock)
+                        for tempBlock in block.iffalse.block_items
+                    )
                 elif c_ast.If == type(block.iffalse):
                     block_items_false_case.append(self.findCalls(block.iffalse))
                 else:
                     block_items_false_case.append(self.findCalls(block.iffalse))
-                return c_ast.If(cond, c_ast.Compound(block_items_true_case), c_ast.Compound(block_items_false_case))
+                return c_ast.If(
+                    cond,
+                    c_ast.Compound(block_items_true_case),
+                    c_ast.Compound(block_items_false_case),
+                )
             case c_ast.Case:
                 self.currentCase = int(block.expr.value)
                 cond = self.findCalls(block.expr)
                 block_items = []
                 if self.firstCase:
                     self.firstCase = False
-                    i = 0
-                    for param in self.functionCallParameters:
-                        block_items.append(c_ast.Assignment('=', c_ast.ID(self.functionParams[i].name), param))
-                        i += 1
-
+                    block_items.extend(
+                        c_ast.Assignment(
+                            '=', c_ast.ID(self.functionParams[i].name), param
+                        )
+                        for i, param in enumerate(self.functionCallParameters)
+                    )
                     # TODO set parameters self.functionCallParameters
-                for tempBlock in block.stmts:
-                    block_items.append(self.findCalls(tempBlock))
+                block_items.extend(
+                    self.findCalls(tempBlock) for tempBlock in block.stmts
+                )
                 return c_ast.Case(cond, block_items)
             case c_ast.Switch:
                 if self.first:
                     self.first = False
                     self.numberOfCases = int(block.stmt.block_items[-1].expr.value)
                 cond = self.findCalls(block.cond)
-                block_items = []
-                for tempBlock in block.stmt.block_items:
-                    block_items.append(self.findCalls(tempBlock))
+                block_items = [
+                    self.findCalls(tempBlock)
+                    for tempBlock in block.stmt.block_items
+                ]
                 return c_ast.Switch(cond, c_ast.Compound(block_items))
             case _:  #
                 return block
@@ -203,97 +205,173 @@ class InlineFunctions:
             pass
         match type(block):
             case c_ast.Assignment:
-                if block.lvalue.name == 'programStep':
-                    valueToAdd = int(block.rvalue.value) + valueToAdd
-                    for call in self.calls:
-                        if call.getCase() == int(block.rvalue.value):
-                            valueToAdd = self.numberOfCases + 1 + self.endOfSwitch  # TODO this one is to move to the function but if there are multiple function calls then this likely wouldn't work
-                            break
-                    return c_ast.Assignment(block.op, block.lvalue, c_ast.Constant(block.rvalue.type, str(valueToAdd)))
-                else:
-                    return c_ast.Assignment(block.op, self.replaceProgramStepAndReturn(block.lvalue),
-                                            self.replaceProgramStepAndReturn(block.rvalue))  # original  return block
+                if block.lvalue.name != 'programStep':
+                    return c_ast.Assignment(
+                        block.op,
+                        self.replaceProgramStepAndReturn(block.lvalue),
+                        self.replaceProgramStepAndReturn(block.rvalue),
+                    )  # original  return block
+                valueToAdd = int(block.rvalue.value) + valueToAdd
+                for call in self.calls:
+                    if call.getCase() == int(block.rvalue.value):
+                        valueToAdd = (
+                            self.numberOfCases + 1 + self.endOfSwitch
+                        )  # TODO this one is to move to the function but if there are multiple function calls then this likely wouldn't work
+                        break
+                return c_ast.Assignment(
+                    block.op,
+                    block.lvalue,
+                    c_ast.Constant(block.rvalue.type, str(valueToAdd)),
+                )
             case c_ast.Return:
                 block_items = []
                 nameOfFunctionThatWasCalled = self.functionVariableName
                 jumpBack = self.returnToCase
                 if self.returnTypeOfFunction != 'void':
                     value = block.expr
-                    block_items.append(c_ast.Assignment('=', c_ast.ID(nameOfFunctionThatWasCalled), value))
-                block_items.append(c_ast.Assignment('=', c_ast.ID('programStep'), c_ast.Constant('int', str(jumpBack))))
+                    block_items.append(
+                        c_ast.Assignment(
+                            '=', c_ast.ID(nameOfFunctionThatWasCalled), value
+                        )
+                    )
+                block_items.append(
+                    c_ast.Assignment(
+                        '=',
+                        c_ast.ID('programStep'),
+                        c_ast.Constant('int', str(jumpBack)),
+                    )
+                )
                 return c_ast.Compound(block_items)
             case c_ast.While:
-                block_items = []
-                for tempBlock in block.stmt.block_items:
-                    block_items.append(self.replaceProgramStepAndReturn(tempBlock))
+                block_items = [
+                    self.replaceProgramStepAndReturn(tempBlock)
+                    for tempBlock in block.stmt.block_items
+                ]
                 stmt = c_ast.Compound(block_items)
-                return c_ast.While(self.replaceProgramStepAndReturn(block.cond), stmt)
+                return c_ast.While(
+                    self.replaceProgramStepAndReturn(block.cond), stmt
+                )
             case c_ast.If:
                 block_items_true_case = []
                 block_items_false_case = []
                 if c_ast.Compound == type(block.iftrue):
-                    for tempBlock in block.iftrue.block_items:
-                        block_items_true_case.append(self.replaceProgramStepAndReturn(tempBlock))
+                    block_items_true_case.extend(
+                        self.replaceProgramStepAndReturn(tempBlock)
+                        for tempBlock in block.iftrue.block_items
+                    )
                 elif c_ast.If == type(block.iftrue):
-                    block_items_true_case.append(self.replaceProgramStepAndReturn(block.iftrue))
+                    block_items_true_case.append(
+                        self.replaceProgramStepAndReturn(block.iftrue)
+                    )
                 else:
-                    block_items_true_case.append(self.replaceProgramStepAndReturn(block.iftrue))
+                    block_items_true_case.append(
+                        self.replaceProgramStepAndReturn(block.iftrue)
+                    )
 
                 if c_ast.Compound == type(block.iffalse):
-                    for tempBlock in block.iffalse.block_items:
-                        block_items_false_case.append(self.replaceProgramStepAndReturn(tempBlock))
+                    block_items_false_case.extend(
+                        self.replaceProgramStepAndReturn(tempBlock)
+                        for tempBlock in block.iffalse.block_items
+                    )
                 elif c_ast.If == type(block.iffalse):
-                    block_items_false_case.append(self.replaceProgramStepAndReturn(block.iffalse))
+                    block_items_false_case.append(
+                        self.replaceProgramStepAndReturn(block.iffalse)
+                    )
                 else:
-                    block_items_false_case.append(self.replaceProgramStepAndReturn(block.iffalse))
-                return c_ast.If(self.replaceProgramStepAndReturn(block.cond), c_ast.Compound(block_items_true_case),
-                                c_ast.Compound(block_items_false_case))
+                    block_items_false_case.append(
+                        self.replaceProgramStepAndReturn(block.iffalse)
+                    )
+                return c_ast.If(
+                    self.replaceProgramStepAndReturn(block.cond),
+                    c_ast.Compound(block_items_true_case),
+                    c_ast.Compound(block_items_false_case),
+                )
             case c_ast.Case:
                 block.expr.value = str(int(block.expr.value) + valueToAdd)
                 block_items = []
-                if getattr(getattr(block.stmts[0], 'lvalue', None), 'name',
-                           "") == "run" and self.endOfSwitch != 0:
+                if (
+                    getattr(getattr(block.stmts[0], 'lvalue', None), 'name', "")
+                    == "run"
+                    and self.endOfSwitch != 0
+                ):
                     jumpBack = self.returnToCase
-                    block_items.append(c_ast.Compound([c_ast.Assignment('=', c_ast.ID('programStep'),
-                                                                        c_ast.Constant('int',
-                                                                                       str(jumpBack)))]))  # TODO is a hack should be implemented better but in this code programStep in Compound won't get updated (unless in the usual place like in if and while) #TODO test removed ,c_ast.Break(None)
+                    block_items.append(
+                        c_ast.Compound(
+                            [
+                                c_ast.Assignment(
+                                    '=',
+                                    c_ast.ID('programStep'),
+                                    c_ast.Constant('int', str(jumpBack)),
+                                )
+                            ]
+                        )
+                    )  # TODO is a hack should be implemented better but in this code programStep in Compound won't get updated (unless in the usual place like in if and while) #TODO test removed ,c_ast.Break(None)
                 else:
-                    for tempBlock in block.stmts:
-                        block_items.append(self.replaceProgramStepAndReturn(tempBlock))
+                    block_items.extend(
+                        self.replaceProgramStepAndReturn(tempBlock)
+                        for tempBlock in block.stmts
+                    )
                 return c_ast.Case(block.expr, block_items)
             case c_ast.Switch:
-                block_items = []
-                for tempBlock in block.stmt.block_items:
-                    block_items.append(self.replaceProgramStepAndReturn(tempBlock))
+                block_items = [
+                    self.replaceProgramStepAndReturn(tempBlock)
+                    for tempBlock in block.stmt.block_items
+                ]
                 return c_ast.Switch(block.cond, c_ast.Compound(block_items))
             case c_ast.BinaryOp:
-                return c_ast.BinaryOp(block.op, self.replaceProgramStepAndReturn(block.left),
-                                      self.replaceProgramStepAndReturn(block.right))
+                return c_ast.BinaryOp(
+                    block.op,
+                    self.replaceProgramStepAndReturn(block.left),
+                    self.replaceProgramStepAndReturn(block.right),
+                )
             case c_ast.UnaryOp:
-                return c_ast.UnaryOp(block.op, self.replaceProgramStepAndReturn(block.expr))
+                return c_ast.UnaryOp(
+                    block.op, self.replaceProgramStepAndReturn(block.expr)
+                )
             case c_ast.StructRef:
-                return c_ast.StructRef(self.replaceProgramStepAndReturn(block.name), block.type, block.field)
+                return c_ast.StructRef(
+                    self.replaceProgramStepAndReturn(block.name),
+                    block.type,
+                    block.field,
+                )
             case c_ast.ID:
-                for x in self.replaceVariable:
-                    if x.decleration == block.name:
-                        return c_ast.ID(x.name)
-                return block
+                return next(
+                    (
+                        c_ast.ID(x.name)
+                        for x in self.replaceVariable
+                        if x.decleration == block.name
+                    ),
+                    block,
+                )
             case c_ast.Decl:
-                for x in self.replaceVariable:
-                    if x.decleration == block.name:
-                        return c_ast.Decl(x.name, block.quals, block.align, block.storage, block.funcspec, block.type,
-                                          block.init, block.bitsize, block.coord)
-                return block
+                return next(
+                    (
+                        c_ast.Decl(
+                            x.name,
+                            block.quals,
+                            block.align,
+                            block.storage,
+                            block.funcspec,
+                            block.type,
+                            block.init,
+                            block.bitsize,
+                            block.coord,
+                        )
+                        for x in self.replaceVariable
+                        if x.decleration == block.name
+                    ),
+                    block,
+                )
             case _:
                 return block
 
     def changeProgramStepAndReturn(self, func,
                                    function):
-        block_items = []
-        for block in func.body.block_items:
-            block_items.append(self.replaceProgramStepAndReturn(block))
-        tmpFunc = c_ast.FuncDef(func.decl, func.param_decls, c_ast.Compound(block_items))
-        return tmpFunc
+        block_items = [
+            self.replaceProgramStepAndReturn(block)
+            for block in func.body.block_items
+        ]
+        return c_ast.FuncDef(func.decl, func.param_decls, c_ast.Compound(block_items))
 
     def appendDecleration(self, name):
         # TODO check for no conflict with already declared variables or variables in the newDeclrations
@@ -318,9 +396,9 @@ class InlineFunctions:
             if type(block) == c_ast.While:  # TODO more concrete check can check that it is actually while(run)  #old not first and type(block)==c_ast.While
                 block_items_while = []
                 for tempBlock in block.stmt.block_items:
-                    block_items_switch = []
                     if type(tempBlock) == c_ast.Switch:
                         lenSwitch = len(tempBlock.stmt.block_items)
+                        block_items_switch = []
                         for i in range(lenSwitch):
                             if i == (lenSwitch - 1):
                                 for call in self.calls:
@@ -329,16 +407,13 @@ class InlineFunctions:
                                             for tempCallBlockWhile in tempCallBlock.stmt.block_items:
                                                 if type(tempCallBlockWhile) == c_ast.Switch:
                                                     block_items_switch.extend(tempCallBlockWhile.stmt.block_items)
-                                block_items_switch.append(tempBlock.stmt.block_items[
-                                                                  i])
-                            else:
-                                block_items_switch.append(tempBlock.stmt.block_items[i])
+                            block_items_switch.append(tempBlock.stmt.block_items[
+                                                              i])
                         block_items_while.append(c_ast.Switch(tempBlock.cond, c_ast.Compound(block_items_switch)))
                     else:
                         block_items_while.append(tempBlock)
                 block_items.append(c_ast.While(block.cond, c_ast.Compound(block_items_while)))
-        tmpFunc = c_ast.FuncDef(func.decl, func.param_decls, c_ast.Compound(block_items))
-        return tmpFunc
+        return c_ast.FuncDef(func.decl, func.param_decls, c_ast.Compound(block_items))
 
     def setCallerParameters(self, parameters):
         self.functionCallParameters = parameters
@@ -346,8 +421,7 @@ class InlineFunctions:
     def declareParameters(self):
         if self.functionCallParameters.__len__() != 0:
             for functionParam in self.functionParams:
-                if not any(x.name == functionParam.name for x in
-                           self.oldDeclerations):  # TODO else case change to toher value and change the variable of the function to be inlined
+                if all(x.name != functionParam.name for x in self.oldDeclerations):  # TODO else case change to toher value and change the variable of the function to be inlined
                     self.newDeclerations.append(
                         c_ast.Decl(functionParam.name, None, None, None, None, functionParam.type, None, None,
                                    None))

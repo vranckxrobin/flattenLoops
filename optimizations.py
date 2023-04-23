@@ -13,10 +13,11 @@ def replaceSwitch(ast,function):
                         if type(whileBlock) == c_ast.Switch:
                             cond=whileBlock.cond
                             for case in whileBlock.stmt.block_items:
-                                caseBlocks=[]
-                                for tempBlock in case.stmts:
-                                    if type(tempBlock)!=c_ast.Break:
-                                        caseBlocks.append(tempBlock)
+                                caseBlocks = [
+                                    tempBlock
+                                    for tempBlock in case.stmts
+                                    if type(tempBlock) != c_ast.Break
+                                ]
                                 whileItems.append(c_ast.If(c_ast.BinaryOp('==',cond,case.expr,None),c_ast.Compound(caseBlocks),None,None))
                         else:
                             whileItems.append(whileBlock)
