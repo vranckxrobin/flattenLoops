@@ -69,6 +69,7 @@ class FlattenPart:
     def handleDoWhileCase(self, block):
         nextInstruction = self.currentCaseNumber
         self.transformWhileBodyToCases(block, 0)
+        returnToCase = self.returnToCase if self.returnToCase != 0 else self.currentCaseNumber + 1
         if self.returnToCase != 0:
             returnToCase = self.returnToCase
         else:
@@ -145,27 +146,32 @@ class FlattenPart:
     def needsFlattening(self, param):
         return param in [c_ast.While, c_ast.If, c_ast.DoWhile]
 
+    def createCase(self, operations, returnToCase):
+        tmpCaseNumber = self.currentCaseNumber
+        self.currentCaseNumber += 1
+        returnToCase = returnToCase if returnToCase != 0 else self.currentCaseNumber
+        operations.append(c_ast.Assignment("=", c_ast.ID("programStep", None),
+                                           c_ast.Constant("int", str(returnToCase), None),
+                                           None))
+        operations.append(c_ast.Break(None))
+        self.cases.append(
+            c_ast.Case(c_ast.Constant("int", str(tmpCaseNumber), None), operations,
+                       None))
+
     def handleIfBody(self, block, ifCaseString):
-        if ifCaseString == 'iffalse' and getattr(block, ifCaseString) is None:
+        ifcase = getattr(block, ifCaseString)
+        if ifCaseString == 'iffalse' and ifcase is None:
             return None
         jumpToCase = self.currentCaseNumber
-        if c_ast.Compound == type(getattr(block, ifCaseString)):
+        if isinstance(ifcase, c_ast.Compound):
             creatingCase = False
             temp = []
-            lengthBlock_items = len(getattr(block, ifCaseString).block_items.block_items) - 1
-            for pos, tempBlock in enumerate(getattr(block, ifCaseString).block_items.block_items):
+            lengthBlock_items = len(ifcase.block_items.block_items) - 1
+            for pos, tempBlock in enumerate(ifcase.block_items.block_items):
                 if self.needsFlattening(type(tempBlock)):
                     if creatingCase:
                         creatingCase = False
-                        tmpCaseNumber = self.currentCaseNumber
-                        self.currentCaseNumber += 1
-                        temp.append(c_ast.Assignment("=", c_ast.ID("programStep", None),
-                                                     c_ast.Constant("int", str(self.currentCaseNumber), None),
-                                                     None))
-                        temp.append(c_ast.Break(None))
-                        self.cases.append(
-                            c_ast.Case(c_ast.Constant("int", str(tmpCaseNumber), None), temp,
-                                       None))
+                        self.createCase(temp, 0)
                         temp = []
                     returnToCase = self.returnToCase if pos == lengthBlock_items else 0
                     flattenPart = FlattenPart(tempBlock, self.currentCaseNumber,
@@ -176,38 +182,24 @@ class FlattenPart:
                     creatingCase = True
                     temp.append(tempBlock)
             if creatingCase:
-                tmpCaseNumber = self.currentCaseNumber
-                self.currentCaseNumber += 1
-                if self.returnToCase != 0:
-                    returnToCase = self.returnToCase
-                else:
-                    returnToCase = self.currentCaseNumber
-                temp.append(c_ast.Assignment("=", c_ast.ID("programStep", None),
-                                             c_ast.Constant("int", str(returnToCase), None),
-                                             None))
-                temp.append(c_ast.Break(None))
-                self.cases.append(
-                    c_ast.Case(c_ast.Constant("int", str(tmpCaseNumber), None), temp,
-                               None))
+                self.createCase(temp, self.returnToCase)
             returnToCase = jumpToCase if ifCaseString == 'iffalse' else self.caseNumber + 1
             trueCase = c_ast.Compound([c_ast.Assignment("=", c_ast.ID("programStep", None),
                                                         c_ast.Constant("int", str(returnToCase), None),
                                                         None)])
-        elif c_ast.If == type(getattr(block, ifCaseString)):
-            tmpCaseNumber = self.currentCaseNumber
-            flattenPart = FlattenPart(getattr(block, ifCaseString), self.currentCaseNumber,
+        elif isinstance(ifcase, c_ast.If):
+            trueCase = c_ast.Compound([c_ast.Assignment("=", c_ast.ID("programStep", None),
+                                                        c_ast.Constant("int", str(self.currentCaseNumber), None),
+                                                        None)])
+            flattenPart = FlattenPart(ifcase, self.currentCaseNumber,
                                       self.returnToCase)  # Note only happens in false case of if
             self.cases.extend(flattenPart.getCases())
             self.currentCaseNumber = flattenPart.getCurrentCaseNumber()
-            trueCase = c_ast.Compound([c_ast.Assignment("=", c_ast.ID("programStep", None),
-                                                        c_ast.Constant("int", str(tmpCaseNumber), None),
-                                                        None)])
+
         else:
-            if ifCaseString == 'iftrue' and type(
-                    getattr(block, ifCaseString)) != c_ast.Return:  # Note only happens for true case
-                self.callsFunctionNotInFile = True
-            trueCase = c_ast.Compound([getattr(block, ifCaseString)])
-            trueCase.coord = None
+            self.callsFunctionNotInFile = (
+                    ifCaseString == 'iftrue' and not isinstance(ifcase, c_ast.Return))
+            trueCase = c_ast.Compound([ifcase], None)
         return trueCase
 
 

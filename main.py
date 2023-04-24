@@ -58,7 +58,7 @@ if __name__ == "__main__":
         filename = sys.argv[1]
         function = sys.argv[2]
     else:
-        filename = 'main.c'  # 'smallLoopTest.c''cprogramTest1.c'minixml.c''parseelt.c'
+        filename = 'minixml.c'  # 'smallLoopTest.c''cprogramTest1.c'minixml.c''parseelt.c'
         function='parsexml'
     # ast=parse_file(filename)
     ast = parse_file(filename, use_cpp=True,
