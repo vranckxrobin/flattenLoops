@@ -60,20 +60,13 @@ class FlattenPart:
         self.currentCaseNumber = self.currentCaseNumber + 1
         nextInstruction = self.currentCaseNumber
         self.transformWhileBodyToCases(block, self.caseNumber)
-        if self.returnToCase != 0:
-            returnToCase = self.returnToCase
-        else:
-            returnToCase = self.currentCaseNumber
+        returnToCase = self.returnToCase if self.returnToCase != 0 else self.currentCaseNumber
         self.transformWhileConditionToIf(block, self.caseNumber, returnToCase, nextInstruction)
 
     def handleDoWhileCase(self, block):
         nextInstruction = self.currentCaseNumber
         self.transformWhileBodyToCases(block, 0)
         returnToCase = self.returnToCase if self.returnToCase != 0 else self.currentCaseNumber + 1
-        if self.returnToCase != 0:
-            returnToCase = self.returnToCase
-        else:
-            returnToCase = self.currentCaseNumber + 1
         self.transformWhileConditionToIf(block, self.currentCaseNumber, returnToCase, nextInstruction)
         self.currentCaseNumber = self.currentCaseNumber + 1
 
@@ -83,10 +76,7 @@ class FlattenPart:
         self.handleIfBody(block, 'iftrue')
         self.handleIfBody(block, 'iffalse')
 
-        if self.returnToCase != 0:
-            returnToCase = self.returnToCase
-        else:
-            returnToCase = self.currentCaseNumber
+        returnToCase = self.returnToCase if self.returnToCase != 0 else self.currentCaseNumber
 
         # TODO reset self do truecase and false case aagain but now for the truecase with the returning of the if function
         self.currentCaseNumber = saveSelf.currentCaseNumber
@@ -207,28 +197,19 @@ class FlattenLoop:
     def __init__(self, ast):
         self.isWhile = 0
         self.newBlockItems = [
-            c_ast.Decl(
-                "run",
-                None,
-                None,
-                None,
-                None,
-                c_ast.TypeDecl(
-                    "run", None, None, c_ast.IdentifierType(['bool'], None), None
-                ),
-                c_ast.Constant("int", "1", None),
-                None,
-                None,
-            )
+            c_ast.Decl("run", None, None, None, None,
+                       c_ast.TypeDecl("run", None, None, c_ast.IdentifierType(['bool'], None), None),
+                       c_ast.Constant("int", "1", None), None, None, ),
+            c_ast.Decl("programStep", None, None, None, None,
+                       c_ast.TypeDecl("programStep", None, None, c_ast.IdentifierType(["int"], None), None),
+                       c_ast.Constant("int", "1", None), None, None)
         ]
-        self.newBlockItems.append(c_ast.Decl("programStep", None, None, None, None,
-                                             c_ast.TypeDecl("programStep", None, None,
-                                                            c_ast.IdentifierType(["int"], None),
-                                                            None), c_ast.Constant("int", "1", None), None, None))
 
         ast = self.appendDeclerations(ast)
         self.caseCount = 1
         self.switchBody = []
+        self.case = []
+
         self.createSwitchBody(ast)
         self.createLastCaseOfSwitchBody()
 
@@ -238,20 +219,7 @@ class FlattenLoop:
         body = c_ast.Compound(switch, None)
         self.newBlockItems.append(c_ast.While(c_ast.ID("run", None), body, None))
 
-    def closeCaseIfOpen(self):
-        if self.case:
-            self.case.append(c_ast.Assignment("=", c_ast.ID("programStep", None),
-                                              c_ast.Constant("int", str(self.caseCount + 1), None),
-                                              None))  # point to what is outside the loop (tmpCaseCount+ 2)
-            self.case.append(c_ast.Break(None))
-            self.switchBody.append(
-                c_ast.Case(c_ast.Constant("int", str(self.caseCount), None), self.case, None))
-            self.caseCount += 1
-            self.case = []
-
     def createSwitchBody(self, ast):
-        self.caseCount = 1
-        self.case = []
         for block in ast:
             flattenPart = FlattenPart(block, self.caseCount, 0)
             self.switchBody.extend(flattenPart.getCases())
@@ -276,12 +244,11 @@ class FlattenLoop:
         self.switchBody.sort(key=lambda x: int(x.expr.value))
 
 
+def flattenFunction(func):
+    flattenLoops = FlattenLoop(func.body)
+    newBody = c_ast.Compound(flattenLoops.getFlattentLoop(), func.body.coord)
+    return c_ast.FuncDef(func.decl, func.param_decls, newBody, func.coord)
+
+
 def flattenLoopsForAllFunction(ast):
-    newAst = c_ast.FileAST([], ast.coord)
-    for funcDef in ast.ext:
-        newBody = c_ast.Compound([], funcDef.body.coord)
-        flattenLoops = FlattenLoop(funcDef.body)
-        newBody.block_items = flattenLoops.getFlattentLoop()
-        newFuncDef = c_ast.FuncDef(funcDef.decl, funcDef.param_decls, newBody, funcDef.coord)
-        newAst.ext.append(newFuncDef)
-    return newAst
+    return c_ast.FileAST([flattenFunction(func) for func in ast.ext], ast.coord)
