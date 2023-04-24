@@ -38,7 +38,7 @@ def ASTToCfile(ast, filename,function):
     generator = c_generator.CGenerator()
 
     ast = generateFunctionsAST(ast)
-    ast = allLocalVariablesAtTopOfFunction(ast)
+    ast = allLocalVariablesAtTopOfFunctions(ast)
     ast = flattenLoopsForAllFunction(ast)
     ast = inlineFunctions(ast, function)
     ast = replaceSwitch(ast,function)

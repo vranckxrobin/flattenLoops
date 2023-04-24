@@ -54,19 +54,16 @@ def handleIfBody(block, ifCaseString):
 def blockItemsLoop(block_items):
     return c_ast.Compound([typesForBlockItems(block) for block in block_items], None)
 
+def allLocalVariablesToTopOfFunction(func):
+    global declerations
+    declerations = []
+    funcBody = getattr(getattr(func, 'body', None), 'block_items', [])
 
-def allLocalVariablesAtTopOfFunction(ast):
-    functions = []
-    for funcDef in ast.ext:
-        funcBody = getattr(getattr(funcDef, 'body', None), 'block_items', []) #TODO maybe replace with a lambda function
+    newBody = [typesForBlockItems(block) if c_ast.Decl != type(block) else block for block in funcBody]
+    lastDecleration = next((i for i, x in enumerate(funcBody) if c_ast.Decl == type(x)), 0)
+    newBody = c_ast.Compound(newBody[:lastDecleration] + declerations + newBody[lastDecleration:])
 
-        global declerations
-        declerations = []
+    return c_ast.FuncDef(func.decl, func.param_decls, newBody, None)
 
-        newBody = [typesForBlockItems(block) if c_ast.Decl != type(block) else block for block in funcBody]
-        lastDecleration = next((i for i, x in enumerate(funcBody) if c_ast.Decl == type(x)), 0)
-        newBody = c_ast.Compound(newBody[:lastDecleration] + declerations + newBody[lastDecleration:], None)
-
-        newFuncDef = c_ast.FuncDef(funcDef.decl, funcDef.param_decls, newBody, None)
-        functions.append(newFuncDef)
-    return c_ast.FileAST(functions, ast.coord)
+def allLocalVariablesAtTopOfFunctions(ast):
+    return c_ast.FileAST([allLocalVariablesToTopOfFunction(func) for func in ast.ext])
