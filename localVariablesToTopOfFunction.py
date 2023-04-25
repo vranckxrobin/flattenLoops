@@ -30,13 +30,11 @@ def typesForBlockItems(block):  # TODO add switch
             declerations.append(block)
             return c_ast.Assignment('=', c_ast.ID(block.name), getDefaultValue(block.type))
         case c_ast.While:
-            return c_ast.While(block.cond, blockItemsLoop(getattr(getattr(block, 'stmt', None), 'block_items', [])),
-                               block.coord)
+            return c_ast.While(block.cond, blockItemsLoop(getattr(getattr(block, 'stmt', None), 'block_items', [])))
         case c_ast.DoWhile:
-            return c_ast.DoWhile(block.cond, blockItemsLoop(getattr(getattr(block, 'stmt', None), 'block_items', [])),
-                                 block.coord)
+            return c_ast.DoWhile(block.cond, blockItemsLoop(getattr(getattr(block, 'stmt', None), 'block_items', [])))
         case c_ast.If:
-            return c_ast.If(block.cond, handleIfBody(block, 'iftrue'), handleIfBody(block, 'iffalse'), block.coord)
+            return c_ast.If(block.cond, handleIfBody(block, 'iftrue'), handleIfBody(block, 'iffalse'))
         case _:
             return block
 
@@ -52,7 +50,7 @@ def handleIfBody(block, ifCaseString):
 
 
 def blockItemsLoop(block_items):
-    return c_ast.Compound([typesForBlockItems(block) for block in block_items], None)
+    return c_ast.Compound([typesForBlockItems(block) for block in block_items])
 
 def allLocalVariablesToTopOfFunction(func):
     global declerations
@@ -63,7 +61,7 @@ def allLocalVariablesToTopOfFunction(func):
     lastDecleration = next((i for i, x in enumerate(funcBody) if c_ast.Decl == type(x)), 0)
     newBody = c_ast.Compound(newBody[:lastDecleration] + declerations + newBody[lastDecleration:])
 
-    return c_ast.FuncDef(func.decl, func.param_decls, newBody, None)
+    return c_ast.FuncDef(func.decl, func.param_decls, newBody)
 
 def allLocalVariablesAtTopOfFunctions(ast):
     return c_ast.FileAST([allLocalVariablesToTopOfFunction(func) for func in ast.ext])

@@ -3,7 +3,7 @@ from pycparser import c_ast
 
 def changeCaseToIf(cond, case):
     caseBlocks = [tempBlock for tempBlock in case.stmts if type(tempBlock) != c_ast.Break]
-    return c_ast.If(c_ast.BinaryOp('==', cond, case.expr, None), c_ast.Compound(caseBlocks), None, None)
+    return c_ast.If(c_ast.BinaryOp('==', cond, case.expr), c_ast.Compound(caseBlocks), None)
 
 
 def replaceSwitch(ast, function):
@@ -15,4 +15,4 @@ def replaceSwitch(ast, function):
 
     newFuncBody = func.body.block_items[:whileIndex] + [c_ast.While(whileLoop.cond, c_ast.Compound(ifStatements))]
 
-    return c_ast.FileAST([c_ast.FuncDef(func.decl, func.param_decls, c_ast.Compound(newFuncBody), None)])
+    return c_ast.FileAST([c_ast.FuncDef(func.decl, func.param_decls, c_ast.Compound(newFuncBody))])

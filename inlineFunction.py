@@ -36,13 +36,10 @@ class InlineFunctions:
         self.currentCase = 0
         self.returnToCase = returnToCase
         self.functionVariableName = functionVariableName
-        self.previousEndOfSwitch = 0
         self.functionCallParameters = []
         self.firstCase = True
         self.replaceVariable = []
 
-    def setPreviousEndOfSwitch(self, endOfSwitch):
-        self.previousEndOfSwitch = endOfSwitch
 
     # TODO set the parameterVariable to the one calling this (example bool x= parsealt(p->xml) -> param_p = p->xml;x=parsealt)
     # TODO check if parameter already declared in normal function and rename them(after renaiming check again)
@@ -91,8 +88,8 @@ class InlineFunctions:
     # TODO make it possible for multiple functions calls (now only one)
     # TODO inline multiple functions  now start with (inlining parseelt of minixml)
     # TODO ceck for infinite loops like function parseXML to parseelt to parseatt back to parseXML and fix this
-    def inlineFunctions(self, ast, functionName):
-        func = next(func for func in ast.ext if func.decl.name == functionName)
+    def inlineFunctions(self, functionName):
+        func = next(func for func in self.ast.ext if func.decl.name == functionName)
         return DeclerationsAndAst(self.newDeclerations, self.inlineFunction(func))
 
     # TODO check todos inlineFunctions maybe needed here
@@ -108,10 +105,9 @@ class InlineFunctions:
         declerationsArr = self.oldDeclerations + self.newDeclerations
 
         inlineFunctions = InlineFunctions(declerationsArr, endOfSwitch, self.ast, returnToCase, functionVariableName)
-        inlineFunctions.setPreviousEndOfSwitch(self.endOfSwitch)
         inlineFunctions.setCallerParameters(parameters)
 
-        result = inlineFunctions.inlineFunctions(self.ast, function)
+        result = inlineFunctions.inlineFunctions(function)
         result.setCase(self.currentCase)
         self.calls.append(result)
         self.newDeclerations.extend(result.getDeclerations())
@@ -235,7 +231,6 @@ class InlineFunctions:
                     block.type,
                     block.init,
                     block.bitsize,
-                    block.coord,
                 ) for x in self.replaceVariable if x.decleration == block.name
                 ), block)
             case _:
@@ -248,8 +243,7 @@ class InlineFunctions:
     def appendDecleration(self, name):
         # TODO check for no conflict with already declared variables or variables in the newDeclrations
         decl = c_ast.Decl(name, None, None, None, None, c_ast.TypeDecl(name, None, None, c_ast.IdentifierType(['int'])),
-                          None,
-                          None)  # TODO replace int with actually function return value if void don't add this variable
+                          None,None)  # TODO replace int with actually function return value if void don't add this variable
         self.newDeclerations.append(decl)
         return name
 
@@ -289,13 +283,12 @@ class InlineFunctions:
             for functionParam in self.functionParams:
                 if all(x.name != functionParam.name for x in self.oldDeclerations):
                     self.newDeclerations.append(
-                        c_ast.Decl(functionParam.name, None, None, None, None, functionParam.type, None, None,
-                                   None))
+                        c_ast.Decl(functionParam.name, None, None, None, None, functionParam.type, None, None))
                 else:
                     self.replaceVariableAndDeclare(functionParam)
 
 
 def inlineFunctions(ast, function):
     inlineFuncClass = InlineFunctions([], 0, ast, 0, '')
-    declerationsAndFunc = inlineFuncClass.inlineFunctions(ast, function)
+    declerationsAndFunc = inlineFuncClass.inlineFunctions(function)
     return c_ast.FileAST([declerationsAndFunc.getFunc()])
