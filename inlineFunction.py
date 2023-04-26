@@ -28,6 +28,7 @@ class DeclerationsAndAst(object):
 
 class InlineFunctions:
     def __init__(self, declerations, endOfSwitch, ast, returnToCase, functionVariableName):
+        self.parameters = []
         self.oldDeclerations = declerations
         self.newDeclerations = []
         self.endOfSwitch = endOfSwitch
@@ -37,9 +38,9 @@ class InlineFunctions:
         self.returnToCase = returnToCase
         self.functionVariableName = functionVariableName
         self.functionCallParameters = []
-        self.firstCase = True
+        # self.firstCase = True
         self.replaceVariable = []
-
+        self.callerFunctionParameters = []
 
     # TODO set the parameterVariable to the one calling this (example bool x= parsealt(p->xml) -> param_p = p->xml;x=parsealt)
     # TODO check if parameter already declared in normal function and rename them(after renaiming check again)
@@ -70,6 +71,7 @@ class InlineFunctions:
         block.name = name
         self.newDeclerations.append(block)
         self.replaceVariable.append(DeclAndReplaceName(block.name, name))
+        return name
 
     def isInOldDeclerations(self, name):
         return any(decl.name == name for decl in self.oldDeclerations)
@@ -109,6 +111,7 @@ class InlineFunctions:
 
         result = inlineFunctions.inlineFunctions(function)
         result.setCase(self.currentCase)
+        self.callerFunctionParameters = inlineFunctions.getParameters()
         self.calls.append(result)
         self.newDeclerations.extend(result.getDeclerations())
 
@@ -137,10 +140,10 @@ class InlineFunctions:
             case c_ast.Case:
                 self.currentCase = int(block.expr.value)
                 block_items = []
-                if self.firstCase:
-                    self.firstCase = False
-                    block_items = [c_ast.Assignment('=', c_ast.ID(self.functionParams[i].name), param) for i, param in
-                                   enumerate(self.functionCallParameters)]
+                # if self.firstCase:
+                #     self.firstCase = False
+                #     block_items = [c_ast.Assignment('=', c_ast.ID(self.functionParams[i].name), param) for i, param in
+                #                    enumerate(self.functionCallParameters)]
                 block_items += [self.findCalls(tempBlock) for tempBlock in block.stmts]
                 return c_ast.Case(self.findCalls(block.expr), block_items)
             case c_ast.Switch:
@@ -168,6 +171,8 @@ class InlineFunctions:
                         self.replaceProgramStepAndReturn(block.lvalue),
                         self.replaceProgramStepAndReturn(block.rvalue),
                     )  # original  return block
+                self.setParams = (
+                            self.setParams or any(call.getCase() == int(block.rvalue.value) for call in self.calls))
                 valueToAdd = self.numberOfCases + 1 + self.endOfSwitch if any(
                     call.getCase() == int(block.rvalue.value) for call in self.calls) else valueToAdd + int(
                     block.rvalue.value)
@@ -193,12 +198,18 @@ class InlineFunctions:
                     c_ast.Compound(self.replaceProgramStepAndReturnIfCase(block.iftrue)),
                     c_ast.Compound(self.replaceProgramStepAndReturnIfCase(block.iffalse)))
             case c_ast.Case:
+                self.setParams = False
                 block.expr.value = str(int(block.expr.value) + valueToAdd)
                 if getattr(getattr(block.stmts[0], 'lvalue', None), 'name', "") == "run" and self.endOfSwitch != 0:
                     block_items = [c_ast.Compound([c_ast.Assignment('=', c_ast.ID('programStep'), c_ast.Constant('int',
                                                                                                                  str(self.returnToCase)), )])]  # TODO is a hack should be implemented better but in this code programStep in Compound won't get updated (unless in the usual place like in if and while) #TODO test removed ,c_ast.Break(None)
                 else:
                     block_items = [self.replaceProgramStepAndReturn(tempBlock) for tempBlock in block.stmts]
+                if self.setParams:
+                    block_items = block_items[:(len(block_items) - 2)] + \
+                                  [c_ast.Assignment('=', c_ast.ID(param), c_ast.ID(self.functionParams[i].name)) for
+                                   i, param in
+                                   enumerate(self.callerFunctionParameters)] + block_items[len(block_items) - 2:]
                 return c_ast.Case(block.expr, block_items)
             case c_ast.Switch:
                 return c_ast.Switch(block.cond, c_ast.Compound(
@@ -243,7 +254,8 @@ class InlineFunctions:
     def appendDecleration(self, name):
         # TODO check for no conflict with already declared variables or variables in the newDeclrations
         decl = c_ast.Decl(name, None, None, None, None, c_ast.TypeDecl(name, None, None, c_ast.IdentifierType(['int'])),
-                          None,None)  # TODO replace int with actually function return value if void don't add this variable
+                          None,
+                          None)  # TODO replace int with actually function return value if void don't add this variable
         self.newDeclerations.append(decl)
         return name
 
@@ -258,7 +270,7 @@ class InlineFunctions:
             isinstance(tempCallBlockWhile, c_ast.Switch))
         return functionSwitch.stmt.block_items
 
-    def flatten(self,list):
+    def flatten(self, list):
         return [element for sublist in list for element in sublist]
 
     def inlineFunctionCall(self, func):
@@ -278,14 +290,19 @@ class InlineFunctions:
     def setCallerParameters(self, parameters):
         self.functionCallParameters = parameters
 
+    def getParameters(self):
+        return self.parameters
+
     def declareParameters(self):
         if self.functionCallParameters.__len__() != 0:
             for functionParam in self.functionParams:
                 if all(x.name != functionParam.name for x in self.oldDeclerations):
+                    name = functionParam.name
                     self.newDeclerations.append(
                         c_ast.Decl(functionParam.name, None, None, None, None, functionParam.type, None, None))
                 else:
-                    self.replaceVariableAndDeclare(functionParam)
+                    name = self.replaceVariableAndDeclare(functionParam)
+                self.parameters.append(name)
 
 
 def inlineFunctions(ast, function):
