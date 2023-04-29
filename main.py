@@ -49,7 +49,7 @@ def ASTToCfile(ast, filename,function):
     if '#include <stdbool.h>\n' not in includes:
         includes += '#include <stdbool.h>\n'
 
-    with open("flatten2.c", "w") as f:
+    with open("flatten3.c", "w") as f:
         f.write(includes + codeWithoutIncludes)
 
 

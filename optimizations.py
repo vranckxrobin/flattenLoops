@@ -1,12 +1,11 @@
 from pycparser import c_ast
 
-
 def changeCaseToIf(cond, case):
     caseBlocks = [tempBlock for tempBlock in case.stmts if type(tempBlock) != c_ast.Break]
     return c_ast.If(c_ast.BinaryOp('==', cond, case.expr), c_ast.Compound(caseBlocks), None)
 
 
-def replaceSwitch(ast, function):
+def replaceSwitch(ast, function: str):
     func = next(func for func in ast.ext if func.decl.name == function)
     whileIndex = next((i for i, block in enumerate(func.body.block_items) if isinstance(block, c_ast.While)), 0)
     whileLoop = func.body.block_items[whileIndex]
