@@ -5,10 +5,10 @@
 *.JPG
 *.bat
 *.sh
-flattenLoops - backup 6-04 10u08.py
-inlineFunction backup.py
+"flattenLoops - backup 6-04 10u08.py"
+"inlineFunction backup.py"
 inlineFunction2.py
-localVariablesToTopOfFunction back up.py
+"localVariablesToTopOfFunction back up.py"
 using_gcc_E_libc.py
 c-to-c.py
 !pycparser-master
