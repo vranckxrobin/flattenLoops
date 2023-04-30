@@ -4,6 +4,7 @@ from pycparser import c_ast
 sys.path.extend(['.', '..'])
 declerations = []
 
+
 def getDefaultValue(type: c_ast.TypeDecl):
     # TODO support other types if necessary
     return c_ast.Constant('string', "\"\"")
@@ -26,8 +27,9 @@ def moveLocalVariables(block):  # TODO add switch
         case _:
             return block
 
-#handles a case(true case if ifCaseString is 'iftrue' or false case if ifCaseString is 'iffalse')
-#of the if statement and call moveLocalVariables if necessary.
+
+# handle a case(true case if ifCaseString is 'iftrue' or false case if ifCaseString is 'iffalse')
+# of the if statement and call moveLocalVariables if necessary.
 def handleIfBody(block: c_ast.If, ifCaseString: str):
     if isinstance(getattr(block, ifCaseString, None), c_ast.Compound):
         return c_ast.Compound(
@@ -37,10 +39,12 @@ def handleIfBody(block: c_ast.If, ifCaseString: str):
     else:
         return getattr(block, ifCaseString, None)
 
+
 def blockItemsLoop(block_items):
     return c_ast.Compound([moveLocalVariables(block) for block in block_items])
 
-#moves all the local variable for a function to the top
+
+# Move all local variables for a function to the top
 def allLocalVariablesToTopOfFunction(func: c_ast.FuncDef):
     global declerations
     declerations = []

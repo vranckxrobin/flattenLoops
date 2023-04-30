@@ -1,13 +1,16 @@
 from pycparser import c_ast
 
 
+# Class datatype of tupel of decleration and name
 class DeclAndReplaceName:
     def __init__(self, decleration, name):
         self.decleration = decleration
         self.name = name
 
 
-class DeclerationsAndAst(object):
+# Class datatype of tupel of decleration and function
+# The current case can also be set
+class DeclerationsAndFunc(object):
     def __init__(self, declerations, func):
         self.declerations = declerations
         self.func = func
@@ -26,33 +29,38 @@ class DeclerationsAndAst(object):
         return self.currentCase
 
 
+# Class responsible for inlining of a function
 class InlineFunctions:
     def __init__(self, declerations, endOfSwitch, ast, returnToCase, functionVariableName):
-        self.parameters = []
-        self.oldDeclerations = declerations
-        self.newDeclerations = []
-        self.endOfSwitch = endOfSwitch
-        self.calls = []
-        self.ast = ast  # TODO use this ast instead of passing it around
-        self.currentCase = 0
-        self.returnToCase = returnToCase
-        self.functionVariableName = functionVariableName
-        self.functionCallParameters = []
-        # self.firstCase = True
-        self.replaceVariable = []
-        self.callerFunctionParameters = []
+        self.oldDeclerations = declerations  # Declared variables
+        self.endOfSwitch = endOfSwitch  # Last switch case
+        self.ast = ast  # The abstract syntax tree to get other functions from
+        self.returnToCase = returnToCase  # To which case to return to
 
-    # TODO set the parameterVariable to the one calling this (example bool x= parsealt(p->xml) -> param_p = p->xml;x=parsealt)
-    # TODO check if parameter already declared in normal function and rename them(after renaiming check again)
-    # TODO check if local variable are already declared and rename them if they have the same name(after renaiming check again)
+        # The name of the variable that the function will need to set when it returns.
+        self.functionVariableName = functionVariableName
+
+        self.parameters = []  # Parameters of this function
+        self.newDeclerations = []  # New variables to declare for this function
+        self.calls = []  # Other functions that are called
+        self.currentCase = 0  # The current case number
+
+        # Variables that need to have a new name for this function
+        # because the functions above it in the ast already has that name
+        self.replaceVariable = []
+        self.callerFunctionParameters = []  # Parameters from the function that this function calls
+        self.setParams = False  # When to set the parameters to call the function
+
+    # Changes declaration of variables if necessary, if they are not declared yet, then they can just be added
     def changesDeclaredVariables(self, func):
         for block in func.body.block_items:
             if type(block) == c_ast.Decl:
-                if not self.isInOldDeclerations(block.name):
+                if not self.isInOldDeclerations(block.name):  # Check if already declared
                     self.newDeclerations.append(block)
                 elif block.name not in ['run', 'programStep']:
                     self.replaceVariableAndDeclare(block)
 
+    # Find  and replace the declname
     def blockReplaceDeclName(self, block, name):
         if hasattr(block, 'declname'):
             block.declname = name
@@ -61,24 +69,31 @@ class InlineFunctions:
 
         return block
 
+    # Add _2 to the name of a variable until the name is not found in the declarations
+    # of the function that called this function or is already present in this function
+    # Then add this to the variables that need to be replaced
     def replaceVariableAndDeclare(self, block):
         name = block.name
         name += "_2"
         while self.isInOldOrNewDeclerations(name):
             name += "_2"
-        # block.type.type.declname=name #TODO check if this is correct for other types
+
         block = self.blockReplaceDeclName(block, name)
         block.name = name
         self.newDeclerations.append(block)
         self.replaceVariable.append(DeclAndReplaceName(block.name, name))
         return name
 
+    # Check if variable name is in the variables of the function that called this function
     def isInOldDeclerations(self, name):
         return any(decl.name == name for decl in self.oldDeclerations)
 
+    # Check if variable name is in the variables of the function that called this function
+    # or is already used in this declaration
     def isInOldOrNewDeclerations(self, name):
         return self.isInOldDeclerations(name) or any(decl.name == name for decl in self.newDeclerations)
 
+    # Inline  a function
     def inlineFunction(self, func):
         self.functionParams = getattr(func.decl.type.args, 'params',
                                       [])
@@ -87,47 +102,54 @@ class InlineFunctions:
         func = self.findFunctionCallsAndInlineOtherFunctions(func)
         return self.changeProgramStepAndReturn(func)
 
-    # TODO make it possible for multiple functions calls (now only one)
-    # TODO inline multiple functions  now start with (inlining parseelt of minixml)
-    # TODO ceck for infinite loops like function parseXML to parseelt to parseatt back to parseXML and fix this
-    def inlineFunctions(self, functionName):
+    # Find the function to inline and call the inlineFunction function
+    def findFunctionAndInline(self, functionName):
         func = next(func for func in self.ast.ext if func.decl.name == functionName)
-        return DeclerationsAndAst(self.newDeclerations, self.inlineFunction(func))
+        return DeclerationsAndFunc(self.newDeclerations, self.inlineFunction(func))
 
-    # TODO check todos inlineFunctions maybe needed here
+    # Find all of the functions that will be called, and inline them into this function.
     def findFunctionCallsAndInlineOtherFunctions(self, func):
         self.returnTypeOfFunction = func.decl.type.type.type.names[0]
         block_items = [self.findCalls(block) for block in func.body.block_items]
         tmpFunc = c_ast.FuncDef(func.decl, func.param_decls, c_ast.Compound(block_items))
         return self.inlineFunctionCall(tmpFunc)
 
-    def changeCall(self, function, functionVariableName, parameters):
-        endOfSwitch = self.endOfSwitch + self.numberOfCases - self.endOfSwitch  # TODO set amount of cases in this function
+    # Inline a function call
+    def changeCall(self, function, functionVariableName):
+        # ReturnToCase is the number of cases for this function + the end of the caller function switch
         returnToCase = self.currentCase + self.endOfSwitch
+        # All declaration from this function and the function that called it
         declerationsArr = self.oldDeclerations + self.newDeclerations
 
-        inlineFunctions = InlineFunctions(declerationsArr, endOfSwitch, self.ast, returnToCase, functionVariableName)
-        inlineFunctions.setCallerParameters(parameters)
+        # Inline of function
+        inlineFunctions = InlineFunctions(declerationsArr, self.numberOfCases, self.ast, returnToCase,
+                                          functionVariableName)
+        result = inlineFunctions.findFunctionAndInline(function)
 
-        result = inlineFunctions.inlineFunctions(function)
-        result.setCase(self.currentCase)
+        result.setCase(self.currentCase)  # Set case to where this function was called
+        # get parameters to set the parameters of this function
         self.callerFunctionParameters = inlineFunctions.getParameters()
-        self.calls.append(result)
+        self.calls.append(result)  # append to function that was called
+        # Add the declarations of this new function to the new declaration
         self.newDeclerations.extend(result.getDeclerations())
 
+    # Find calls for one case of the if statement (true case or false case)
+    # and find function calls
     def ifBodyCase(self, ifBodyCase):
         if isinstance(ifBodyCase, c_ast.Compound):
             return [self.findCalls(tempBlock) for tempBlock in ifBodyCase.block_items]
         else:
             return [self.findCalls(ifBodyCase)]
 
+    # Look for calls in a statement and when found, call changeCall function
+    # and replace the function call with an id of the new function variable
     def findCalls(self, block):
         match type(block):
-            case c_ast.FuncCall:  # TODO call this class again for the other function to flatten and add it to this one
+            case c_ast.FuncCall:
                 if not self.functionInFile(block.name.name):
                     return block
                 name = self.appendDecleration(block.name.name)
-                self.changeCall(block.name.name, name, block.args.exprs)
+                self.changeCall(block.name.name, name)
                 return c_ast.ID(name)
             case c_ast.While:
                 return c_ast.While(self.findCalls(block.cond),
@@ -140,10 +162,6 @@ class InlineFunctions:
             case c_ast.Case:
                 self.currentCase = int(block.expr.value)
                 block_items = []
-                # if self.firstCase:
-                #     self.firstCase = False
-                #     block_items = [c_ast.Assignment('=', c_ast.ID(self.functionParams[i].name), param) for i, param in
-                #                    enumerate(self.functionCallParameters)]
                 block_items += [self.findCalls(tempBlock) for tempBlock in block.stmts]
                 return c_ast.Case(self.findCalls(block.expr), block_items)
             case c_ast.Switch:
@@ -153,12 +171,16 @@ class InlineFunctions:
             case _:  #
                 return block
 
+    # Call the replaceProgramStepAndReturn function for all statements in an if case (true or false case)
     def replaceProgramStepAndReturnIfCase(self, ifBodyCase):
         if isinstance(ifBodyCase, c_ast.Compound):
             return [self.replaceProgramStepAndReturn(tempBlock) for tempBlock in ifBodyCase.block_items]
         else:
             return [self.replaceProgramStepAndReturn(ifBodyCase)]
 
+    # Add the endOfSwitch value to the programSteps to be able to add it to the function that called this one
+    # Change the return statement to return to the calling function
+    # And change the program step from a function call to jump to the starting case of the function
     def replaceProgramStepAndReturn(self, block):
         valueToAdd = self.endOfSwitch
         if self.calls.__len__() > 0:
@@ -170,20 +192,22 @@ class InlineFunctions:
                         block.op,
                         self.replaceProgramStepAndReturn(block.lvalue),
                         self.replaceProgramStepAndReturn(block.rvalue),
-                    )  # original  return block
+                    )  # Original  return block
                 self.setParams = (
-                            self.setParams or any(call.getCase() == int(block.rvalue.value) for call in self.calls))
+                        self.setParams or any(call.getCase() == int(block.rvalue.value) for call in self.calls))
                 valueToAdd = self.numberOfCases + 1 + self.endOfSwitch if any(
                     call.getCase() == int(block.rvalue.value) for call in self.calls) else valueToAdd + int(
-                    block.rvalue.value)
+                    block.rvalue.value)  # Compute the program step for the function call to jump to
                 return c_ast.Assignment(
                     block.op,
                     block.lvalue,
                     c_ast.Constant(block.rvalue.type, str(valueToAdd)),
                 )
             case c_ast.Return:
+                # Change the return statement to return to the calling function
                 block_items = [
-                    c_ast.Assignment('=', c_ast.ID('programStep'), c_ast.Constant('int', str(self.returnToCase)))]
+                    c_ast.Assignment('=', c_ast.ID('programStep'), c_ast.Constant('int',
+                                                                                  str(self.returnToCase)))]
                 if self.returnTypeOfFunction != 'void':
                     block_items = [c_ast.Assignment('=', c_ast.ID(self.functionVariableName), block.expr)] + block_items
                 return c_ast.Compound(block_items)
@@ -200,12 +224,13 @@ class InlineFunctions:
             case c_ast.Case:
                 self.setParams = False
                 block.expr.value = str(int(block.expr.value) + valueToAdd)
+                # Replace last case to end the loop to just jump back to the function that called this one
                 if getattr(getattr(block.stmts[0], 'lvalue', None), 'name', "") == "run" and self.endOfSwitch != 0:
                     block_items = [c_ast.Compound([c_ast.Assignment('=', c_ast.ID('programStep'), c_ast.Constant('int',
                                                                                                                  str(self.returnToCase)), )])]  # TODO is a hack should be implemented better but in this code programStep in Compound won't get updated (unless in the usual place like in if and while) #TODO test removed ,c_ast.Break(None)
                 else:
                     block_items = [self.replaceProgramStepAndReturn(tempBlock) for tempBlock in block.stmts]
-                if self.setParams:
+                if self.setParams:  # Add setting of the parameters to call functions to this case
                     block_items = block_items[:(len(block_items) - 2)] + \
                                   [c_ast.Assignment('=', c_ast.ID(param), c_ast.ID(self.functionParams[i].name)) for
                                    i, param in
@@ -247,10 +272,12 @@ class InlineFunctions:
             case _:
                 return block
 
+    # Call replaceProgramStepAndReturn for each statement in the function body
     def changeProgramStepAndReturn(self, func):
         return c_ast.FuncDef(func.decl, func.param_decls, c_ast.Compound(
             [self.replaceProgramStepAndReturn(block) for block in func.body.block_items]))
 
+    # Add a new declaration
     def appendDecleration(self, name):
         # TODO check for no conflict with already declared variables or variables in the newDeclrations
         decl = c_ast.Decl(name, None, None, None, None, c_ast.TypeDecl(name, None, None, c_ast.IdentifierType(['int'])),
@@ -259,9 +286,11 @@ class InlineFunctions:
         self.newDeclerations.append(decl)
         return name
 
+    # See if the function is declared in the supplied file
     def functionInFile(self, function):
         return any(func.decl.name == function for func in self.ast.ext)
 
+    # Get all cases from the function call
     def getSwitchCasesFromCall(self, call):
         functionWhileLoop = next(
             block for block in call.getFunc().body.block_items if isinstance(block, c_ast.While))
@@ -270,31 +299,35 @@ class InlineFunctions:
             isinstance(tempCallBlockWhile, c_ast.Switch))
         return functionSwitch.stmt.block_items
 
+    # flatten list from list to list
     def flatten(self, list):
         return [element for sublist in list for element in sublist]
 
+    # Add inlined function cases to this function
     def inlineFunctionCall(self, func):
         whileLoop = next(block for block in func.body.block_items if type(block) == c_ast.While)
         switch = next(block for block in whileLoop.stmt.block_items if isinstance(block, c_ast.Switch))
 
         lenSwitch = len(switch.stmt.block_items) - 1
+        # Add function cases
         block_items_switch = switch.stmt.block_items[:lenSwitch] + \
                              self.flatten([self.getSwitchCasesFromCall(call) for call in self.calls]) + \
                              [switch.stmt.block_items[lenSwitch]]
 
+        # Add new declarations
         block_items = self.newDeclerations + [c_ast.While(whileLoop.cond,
                                                           c_ast.Compound([c_ast.Switch(switch.cond, c_ast.Compound(
                                                               block_items_switch))]))]
-        return c_ast.FuncDef(func.decl, func.param_decls, c_ast.Compound(block_items))
+        return c_ast.FuncDef(func.decl, func.param_decls, c_ast.Compound(block_items))  # return new function
 
-    def setCallerParameters(self, parameters):
-        self.functionCallParameters = parameters
-
+    # Get parameters
     def getParameters(self):
         return self.parameters
 
+    # Add parameter to declarations and change name if necessary
+    # then add this name to the self.parameters array
     def declareParameters(self):
-        if self.functionCallParameters.__len__() != 0:
+        if self.returnToCase != 0:
             for functionParam in self.functionParams:
                 if all(x.name != functionParam.name for x in self.oldDeclerations):
                     name = functionParam.name
@@ -305,7 +338,8 @@ class InlineFunctions:
                 self.parameters.append(name)
 
 
+# Inlining of functions
 def inlineFunctions(ast, function):
     inlineFuncClass = InlineFunctions([], 0, ast, 0, '')
-    declerationsAndFunc = inlineFuncClass.inlineFunctions(function)
+    declerationsAndFunc = inlineFuncClass.findFunctionAndInline(function)
     return c_ast.FileAST([declerationsAndFunc.getFunc()])

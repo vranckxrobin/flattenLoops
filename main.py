@@ -5,7 +5,7 @@ from pycparser import parse_file, c_generator
 import re
 from optimizations import replaceSwitch
 
-
+# Class to get only the function from an abstract syntax tree
 class FuncDefVisitor(c_ast.NodeVisitor):
     def __init__(self):
         self.nodes = []
@@ -17,6 +17,7 @@ class FuncDefVisitor(c_ast.NodeVisitor):
         print(f'{node.decl.name} at {node.decl.coord}')
         self.nodes.append(node)
 
+# Find all includes in the file
 def extractIncludes(filename):
     includes = ""
 
@@ -26,25 +27,28 @@ def extractIncludes(filename):
                 includes += line
     return includes
 
-
+# Extract function from abstract syntax tree
 def generateFunctionsAST(ast):
     v = FuncDefVisitor()
     v.visit(ast)
     ast.ext = v.getFunctionNodes()
     return ast
 
-
+# Apply the algorithm to the abstract syntax tree
+# Convert abstract syntax tree to C code and add includes
 def ASTToCfile(ast, filename,function):
     generator = c_generator.CGenerator()
-
     ast = generateFunctionsAST(ast)
+
+    # Apply the algorithm to the abstract syntax tree
     ast = allLocalVariablesAtTopOfFunctions(ast)
     ast = flattenLoopsForAllFunction(ast)
     ast = inlineFunctions(ast, function)
     ast = replaceSwitch(ast,function)
 
-    codeWithoutIncludes = generator.visit(ast)
+    codeWithoutIncludes = generator.visit(ast) # Convert abstract syntax tree to C code
 
+    # Add includes
     includes = extractIncludes(filename)  # TODO extract everything that is not a function (example global variables)
     if '#include <stdbool.h>\n' not in includes:
         includes += '#include <stdbool.h>\n'
@@ -60,7 +64,7 @@ if __name__ == "__main__":
     else:
         filename = 'minixml.c'  # 'smallLoopTest.c''cprogramTest1.c'minixml.c''parseelt.c'
         function='parsexml'
-    # ast=parse_file(filename)
+
     ast = parse_file(filename, use_cpp=True,
                      cpp_path='cpp',
                      cpp_args=r'-Ipycparser-master/utils/fake_libc_include')
