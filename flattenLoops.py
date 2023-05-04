@@ -231,7 +231,7 @@ class FlattenFunc:
                 c_ast.Break()]
         self.switchBody.append(c_ast.Case(c_ast.Constant("int", str(self.caseCount)), case))
 
-    def getFlattentLoop(self):
+    def getFlattenedLoop(self):
         return self.newBlockItems
 
     # Adds the declarations to the newBlockItems variable (which will be the new function)
@@ -248,9 +248,9 @@ class FlattenFunc:
 # Flattens a function
 def flattenFunction(func):
     flattenFunc = FlattenFunc(func.body)
-    newBody = c_ast.Compound(flattenFunc.getFlattentLoop())
+    newBody = c_ast.Compound(flattenFunc.getFlattenedLoop())
     return c_ast.FuncDef(func.decl, func.param_decls, newBody)
 
 # Flattens all the functions
-def flattenLoopsForAllFunction(ast):
+def flattenFile(ast):
     return c_ast.FileAST([flattenFunction(func) for func in ast.ext])
