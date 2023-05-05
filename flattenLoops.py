@@ -148,8 +148,8 @@ class FlattenStmt:
     def createCasesForIfBody(self, ifcase):
         creatingCase = False  # Used for bundling statements that don't need to be flattened.
         temp = []
-        lengthBlock_items = len(ifcase.block_items.block_items) - 1
-        for pos, tempBlock in enumerate(ifcase.block_items.block_items):
+        lengthBlock_items = len(ifcase.block_items) - 1
+        for pos, tempBlock in enumerate(ifcase.block_items):
             if self.needsFlattening(type(tempBlock)):  # Checks if the current statement needs to be flattened.
                 if creatingCase:  # If there was a case that was being made, create it first.
                     creatingCase = False

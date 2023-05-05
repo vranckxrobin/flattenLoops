@@ -31,11 +31,11 @@ def extractIncludes(filename):
 
 
 # Extract function from abstract syntax tree
-def generateFunctionsAST(ast):
-    v = FuncDefVisitor()
-    v.visit(ast)
-    ast.ext = v.getFunctionNodes()
-    return ast
+# def generateFunctionsAST(ast):
+#     v = FuncDefVisitor()
+#     v.visit(ast)
+#     ast.ext = v.getFunctionNodes()
+#     return ast
 
 
 # Apply the algorithm to the abstract syntax tree

@@ -78,10 +78,10 @@ class InlineFunctions:
         while self.isInOldOrNewDeclerations(name):
             name += "_2"
 
+        self.replaceVariable.append(DeclAndReplaceName(block.name, name))
         block = self.blockReplaceDeclName(block, name)
         block.name = name
         self.newDeclerations.append(block)
-        self.replaceVariable.append(DeclAndReplaceName(block.name, name))
         return name
 
     # Check if variable name is in the variables of the function that called this function
