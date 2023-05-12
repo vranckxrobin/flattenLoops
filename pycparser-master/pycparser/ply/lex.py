@@ -36,7 +36,7 @@ __tabversion__ = '3.10'
 
 import re
 import sys
-import types
+import customTypes
 import copy
 import os
 import inspect
@@ -44,7 +44,7 @@ import inspect
 # This tuple contains known string types
 try:
     # Python 2.6
-    StringTypes = (types.StringType, types.UnicodeType)
+    StringTypes = (customTypes.StringType, customTypes.UnicodeType)
 except AttributeError:
     # Python 3.0
     StringTypes = (str, bytes)
@@ -172,7 +172,7 @@ class Lexer:
     # writetab() - Write lexer information to a table file
     # ------------------------------------------------------------
     def writetab(self, lextab, outputdir=''):
-        if isinstance(lextab, types.ModuleType):
+        if isinstance(lextab, customTypes.ModuleType):
             raise IOError("Won't overwrite existing lextab module")
         basetabmodule = lextab.split('.')[-1]
         filename = os.path.join(outputdir, basetabmodule) + '.py'
@@ -209,7 +209,7 @@ class Lexer:
     # readtab() - Read lexer information from a tab file
     # ------------------------------------------------------------
     def readtab(self, tabfile, fdict):
-        if isinstance(tabfile, types.ModuleType):
+        if isinstance(tabfile, customTypes.ModuleType):
             lextab = tabfile
         else:
             exec('import %s' % tabfile)
@@ -503,7 +503,7 @@ def _form_master_re(relist, reflags, ldict, toknames):
 
         for f, i in lexre.groupindex.items():
             handle = ldict.get(f, None)
-            if type(handle) in (types.FunctionType, types.MethodType):
+            if type(handle) in (customTypes.FunctionType, customTypes.MethodType):
                 lexindexfunc[i] = (handle, toknames[f])
                 lexindexnames[i] = f
             elif handle is not None:
@@ -737,7 +737,7 @@ class LexerReflect(object):
                 self.modules.add(module)
 
                 tokname = self.toknames[fname]
-                if isinstance(f, types.MethodType):
+                if isinstance(f, customTypes.MethodType):
                     reqargs = 2
                 else:
                     reqargs = 1
@@ -805,7 +805,7 @@ class LexerReflect(object):
                 module = inspect.getmodule(f)
                 self.modules.add(module)
 
-                if isinstance(f, types.MethodType):
+                if isinstance(f, customTypes.MethodType):
                     reqargs = 2
                 else:
                     reqargs = 1
@@ -1028,7 +1028,7 @@ def lex(module=None, object=None, debug=False, optimize=False, lextab='lextab',
             # is determined according to the following rules:
             #     - If lextab specifies a package, files go into that package directory
             #     - Otherwise, files go in the same directory as the specifying module
-            if isinstance(lextab, types.ModuleType):
+            if isinstance(lextab, customTypes.ModuleType):
                 srcfile = lextab.__file__
             else:
                 if '.' not in lextab:

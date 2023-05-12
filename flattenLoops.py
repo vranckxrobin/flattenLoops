@@ -1,5 +1,4 @@
 import sys
-
 from pycparser import c_ast
 import copy
 
@@ -21,9 +20,9 @@ class FlattenStmt:
     def getCases(self):
         return self.cases
 
-    def transformWhileBodyToCases(self, stmt, returnToWhile):
-        lengthBlock_items = len(stmt.stmt.block_items) - 1
-        for pos, tempBlock in enumerate(stmt.stmt.block_items):
+    def transformWhileBodyToCases(self, block_items, returnToWhile):
+        lengthBlock_items = len(block_items) - 1
+        for pos, tempBlock in enumerate(block_items):
             returnToCase = returnToWhile if pos == lengthBlock_items else 0  # state to which case to return to 0 is go to next case
             flattenStmt = FlattenStmt(tempBlock, self.currentCaseNumber,
                                       returnToCase)  # actual flattening of part of the while loop
@@ -32,58 +31,65 @@ class FlattenStmt:
             self.currentCaseNumber = flattenStmt.getCurrentCaseNumber()
 
     def transformWhileConditionToIf(self, stmt, caseNumber, returnToCase, nextInstruction):
-        falseCase = [c_ast.Assignment("=", c_ast.ID("programStep"),
-                                      c_ast.Constant("int", str(returnToCase)))]
+        falseCase= [c_ast.Assignment("=", c_ast.ID("programStep"),
+                                                       c_ast.Constant("int",
+                                                                      str(returnToCase)))]  # List[Union[c_ast.Assignment,c_ast.Constant]]
 
         case = [c_ast.If(stmt.cond, c_ast.Compound([c_ast.Assignment("=", c_ast.ID("programStep"),
-                                                                     c_ast.Constant("int", str(nextInstruction)))]),
-                         c_ast.Compound(falseCase)),
-                c_ast.Break()]
+                                                                                      c_ast.Constant("int",
+                                                                                                     str(nextInstruction)))]),
+                                          c_ast.Compound(falseCase)),
+                                 c_ast.Break()]
         self.cases.append(
             c_ast.Case(c_ast.Constant("int", str(caseNumber)), case))
 
     def handleWhileCase(self, stmt):
         self.currentCaseNumber = self.currentCaseNumber + 1  # add case because first case is the while's if statement
         nextInstruction = self.currentCaseNumber
-        self.transformWhileBodyToCases(stmt, self.caseNumber)
+        self.transformWhileBodyToCases(stmt.stmt.block_items, self.caseNumber)
         returnToCase = self.returnToCase if self.returnToCase != 0 else self.currentCaseNumber  # Sets to which case to return to
         self.transformWhileConditionToIf(stmt, self.caseNumber, returnToCase, nextInstruction)
 
     def handleDoWhileCase(self, stmt):
         nextInstruction = self.currentCaseNumber
-        self.transformWhileBodyToCases(stmt, 0)
+        self.transformWhileBodyToCases(stmt.stmt.block_items, 0)
         returnToCase = self.returnToCase if self.returnToCase != 0 else self.currentCaseNumber + 1  # Sets to which case to return to
         self.transformWhileConditionToIf(stmt, self.currentCaseNumber, returnToCase, nextInstruction)
         self.currentCaseNumber = self.currentCaseNumber + 1  # add case because last case is the while's if statement
 
-        # flattens if statements and calls this class when part of the if statement cases should be flattened
+    def calculateReturnStatementForIf(self, ifStatement):
+        if self.returnToCase != 0:
+            return self.returnToCase
 
-    def handleIfCase(self, stmt):
         saveSelf = copy.deepcopy(self)  # save state
-
-        returnToCase = self.returnToCase
 
         # if the condition of if is false we need to jump over the true case statements
         # This if statement is used to get that case number so we know where to jump to.
         # Not necessary if there is a return statement, because that would be where the
         # else case should point to
-        if returnToCase == 0:
-            self.currentCaseNumber += 1
-            self.handleIfBody(stmt, 'iftrue')
-            self.handleIfBody(stmt, 'iffalse')
-            returnToCase = self.returnToCase if self.returnToCase != 0 else self.currentCaseNumber
+        self.currentCaseNumber += 1
+        self.handleIfBody(ifStatement, 'iftrue')
+        self.handleIfBody(ifStatement, 'iffalse')
+        returnToCase = self.returnToCase if self.returnToCase != 0 else self.currentCaseNumber
 
-            # reset the previous save state except for the returnToCase
-            self.currentCaseNumber = saveSelf.currentCaseNumber
-            self.cases = saveSelf.cases
-            self.returnToCase = saveSelf.returnToCase
-            self.caseNumber = saveSelf.caseNumber
-            self.returnToCase = returnToCase
+        # reset the previous save state except for the returnToCase
+        self.currentCaseNumber = saveSelf.currentCaseNumber
+        self.cases = saveSelf.cases
+        self.returnToCase = saveSelf.returnToCase
+        self.caseNumber = saveSelf.caseNumber
+        self.returnToCase = returnToCase
+
+        return returnToCase
+
+    # flattens if statements and calls this class when part of the if statement cases should be flattened
+    def handleIfCase(self, stmt):
+        previousReturnToCase = self.returnToCase
+        returnToCase=self.calculateReturnStatementForIf(stmt)
 
         self.callsFunctionNotInFile = False  # Used to add the programSteps in the else case and remove the redunt ones under the if else statement.
         self.currentCaseNumber += 1  # add 1 for the case of the if statement itself
         trueCase = self.handleIfBody(stmt, 'iftrue')  # flattens true case
-        self.returnToCase = saveSelf.returnToCase  # reset saved return case
+        self.returnToCase = previousReturnToCase  # reset saved return case
         falseCase = self.handleIfBody(stmt, 'iffalse')  # flattens false case
 
         # add programStep in the else case if the else is empty
@@ -257,4 +263,4 @@ def flattenFunction(func):
 
 # Flattens all the functions
 def flattenFile(ast):
-    return c_ast.FileAST([flattenFunction(func) for func in ast.ext])
+    return c_ast.FileAST([flattenFunction(func) for func in ast.ext if isinstance(func, c_ast.FuncDef)])

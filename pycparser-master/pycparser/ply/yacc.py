@@ -60,7 +60,7 @@
 # ----------------------------------------------------------------------------
 
 import re
-import types
+import customTypes
 import sys
 import os.path
 import inspect
@@ -1976,7 +1976,7 @@ class LRTable(object):
         self.lr_method = None
 
     def read_table(self, module):
-        if isinstance(module, types.ModuleType):
+        if isinstance(module, customTypes.ModuleType):
             parsetab = module
         else:
             exec('import %s' % module)
@@ -2724,7 +2724,7 @@ class LRGeneratedTable(LRTable):
     # -----------------------------------------------------------------------------
 
     def write_table(self, tabmodule, outputdir='', signature=''):
-        if isinstance(tabmodule, types.ModuleType):
+        if isinstance(tabmodule, customTypes.ModuleType):
             raise IOError("Won't overwrite existing tabmodule")
 
         basemodulename = tabmodule.split('.')[-1]
@@ -3035,9 +3035,9 @@ class ParserReflect(object):
     # Validate the error function
     def validate_error_func(self):
         if self.error_func:
-            if isinstance(self.error_func, types.FunctionType):
+            if isinstance(self.error_func, customTypes.FunctionType):
                 ismethod = 0
-            elif isinstance(self.error_func, types.MethodType):
+            elif isinstance(self.error_func, customTypes.MethodType):
                 ismethod = 1
             else:
                 self.log.error("'p_error' defined, but is not a function or method")
@@ -3129,7 +3129,7 @@ class ParserReflect(object):
         for name, item in self.pdict.items():
             if not name.startswith('p_') or name == 'p_error':
                 continue
-            if isinstance(item, (types.FunctionType, types.MethodType)):
+            if isinstance(item, (customTypes.FunctionType, customTypes.MethodType)):
                 line = getattr(item, 'co_firstlineno', item.__code__.co_firstlineno)
                 module = inspect.getmodule(item)
                 p_functions.append((line, module, name, item.__doc__))
@@ -3156,7 +3156,7 @@ class ParserReflect(object):
         for line, module, name, doc in self.pfuncs:
             file = inspect.getsourcefile(module)
             func = self.pdict[name]
-            if isinstance(func, types.MethodType):
+            if isinstance(func, customTypes.MethodType):
                 reqargs = 2
             else:
                 reqargs = 1
@@ -3186,14 +3186,14 @@ class ParserReflect(object):
         # or functions that look like they might be grammar rules.
 
         for n, v in self.pdict.items():
-            if n.startswith('p_') and isinstance(v, (types.FunctionType, types.MethodType)):
+            if n.startswith('p_') and isinstance(v, (customTypes.FunctionType, customTypes.MethodType)):
                 continue
             if n.startswith('t_'):
                 continue
             if n.startswith('p_') and n != 'p_error':
                 self.log.warning('%r not defined as a function', n)
-            if ((isinstance(v, types.FunctionType) and v.__code__.co_argcount == 1) or
-                   (isinstance(v, types.MethodType) and v.__func__.__code__.co_argcount == 2)):
+            if ((isinstance(v, customTypes.FunctionType) and v.__code__.co_argcount == 1) or
+                   (isinstance(v, customTypes.MethodType) and v.__func__.__code__.co_argcount == 2)):
                 if v.__doc__:
                     try:
                         doc = v.__doc__.split(' ')
@@ -3243,7 +3243,7 @@ def yacc(method='LALR', debug=yaccdebug, module=None, tabmodule=tab_module, star
         # is determined according to the following rules:
         #     - If tabmodule specifies a package, files go into that package directory
         #     - Otherwise, files go in the same directory as the specifying module
-        if isinstance(tabmodule, types.ModuleType):
+        if isinstance(tabmodule, customTypes.ModuleType):
             srcfile = tabmodule.__file__
         else:
             if '.' not in tabmodule:
