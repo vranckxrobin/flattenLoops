@@ -8,8 +8,9 @@ sys.path.extend(['.', '..'])
 def moveLocalVariables(stmt, declarations):  # TODO add switch
     match type(stmt):
         case c_ast.Decl:
-            declarations.append(stmt)
-            return
+            declarations.append(c_ast.Decl(stmt.name, None, None, None, None, stmt.type, None, None))
+            if stmt.init is not None:
+                return c_ast.Assignment('=', c_ast.ID(stmt.name), stmt.init)
         case c_ast.While:
             return c_ast.While(stmt.cond, blockItemsLoop(stmt.stmt.block_items, declarations))
         case c_ast.DoWhile:

@@ -13,3 +13,4 @@ using_gcc_E_libc.py
 c-to-c.py
 !pycparser-master
 verify
+!tests
