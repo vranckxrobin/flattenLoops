@@ -1,4 +1,4 @@
-from pycparser import parse_file
+from pycparser import parse_file, c_ast
 
 from flattenLoops import flattenFile
 from inlineFunction import inlineFunctions
@@ -45,5 +45,9 @@ def helperFunctionToEntireAlgorithmAndOptimizations(filename, function):
 
 def helperFunctionToTestFlattenLoops(fileName):
     ast = helperFunctionCreateAst(fileName)
-    helperFunctionCreateAst(fileName)
     return flattenFile(ast)
+
+def helperFunctionToTestInliningFunctions(fileName,func):
+    ast = helperFunctionCreateAst(fileName)
+    ast = c_ast.FileAST([func for func in ast.ext if isinstance(func, c_ast.FuncDef)])
+    return inlineFunctions(ast,func)
