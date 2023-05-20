@@ -14,16 +14,11 @@ def helperFunctionCreateAst(filename):
 
 
 def helperFunctionGetIncludes(filename):
-    includes = extractIncludes(
-        filename)
-    if '#include <stdbool.h>\n' not in includes:
-        includes += '#include <stdbool.h>\n'
-    return includes
+    return extractIncludes(filename)
 
 
 def helperFunctionToTestLocalVaraiblesToTopOfFunction(filename):
     ast = helperFunctionCreateAst(filename)
-    helperFunctionCreateAst(filename)
     # Apply the algorithm to the abstract syntax tree
     return allLocalVariablesToTopOfFunctions(ast)
 

@@ -27,6 +27,8 @@ def extractIncludes(filename):
         for line in file:
             if re.search("#include", line):
                 includes += line
+    if '#include <stdbool.h>\n' not in includes:
+        includes += '#include <stdbool.h>\n'
     return includes
 
 
@@ -54,8 +56,6 @@ def ASTToCfile(ast, filename, function):
 
     # Add includes
     includes = extractIncludes(filename)  # TODO extract everything that is not a function (example global variables)
-    if '#include <stdbool.h>\n' not in includes:
-        includes += '#include <stdbool.h>\n'
 
     with open("flatten3.c", "w") as f:
         f.write(includes + codeWithoutIncludes)
