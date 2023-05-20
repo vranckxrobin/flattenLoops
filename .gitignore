@@ -14,3 +14,4 @@ c-to-c.py
 !pycparser-master
 verify
 !tests
+!tests/TestFiles
