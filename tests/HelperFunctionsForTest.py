@@ -47,7 +47,14 @@ def helperFunctionToTestFlattenLoops(fileName):
     ast = helperFunctionCreateAst(fileName)
     return flattenFile(ast)
 
-def helperFunctionToTestInliningFunctions(fileName,func):
+
+def helperFunctionToTestInliningFunctions(fileName, func):
     ast = helperFunctionCreateAst(fileName)
     ast = c_ast.FileAST([func for func in ast.ext if isinstance(func, c_ast.FuncDef)])
-    return inlineFunctions(ast,func)
+    return inlineFunctions(ast, func)
+
+
+def helperFunctionToTestOptimization(fileName, func):
+    ast = helperFunctionCreateAst(fileName)
+    ast = c_ast.FileAST([func for func in ast.ext if isinstance(func, c_ast.FuncDef)])
+    return replaceSwitch(ast, func)

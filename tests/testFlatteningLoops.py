@@ -54,6 +54,3 @@ class TestFlattenLoops(unittest.TestCase):
             result = f.read()
         self.assertEqual(code, result)
 
-
-if __name__ == '__main__':
-    unittest.main()

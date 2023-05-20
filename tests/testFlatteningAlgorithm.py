@@ -5,7 +5,7 @@ from pycparser import c_generator
 from HelperFunctionsForTest import *
 
 
-class TestSum(unittest.TestCase):
+class TestFlatteningAlgorithm(unittest.TestCase):
     def testLocalVariablesToTopOfFunction(self):
         fileName = "TestFiles/moveDeclaredVariableToTop.c"
         generator = c_generator.CGenerator()
@@ -104,7 +104,3 @@ class TestSum(unittest.TestCase):
         with open("TestFilesResult/minixml.c", "r") as f:
             result = f.read()
         self.assertEqual(code, result)
-
-
-if __name__ == '__main__':
-    unittest.main()

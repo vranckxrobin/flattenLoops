@@ -76,6 +76,7 @@ void parsexml(struct xmlparser *parser)
       {
         programStep = 3;
       }
+        break;
 
       case 4:
         run = 0;

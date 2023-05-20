@@ -31,7 +31,3 @@ class TestInliningFunctions(unittest.TestCase):
         with open("TestFilesResult/InliningLoops/Inline2FunctionsWithSameFunctionparameter.c", "r") as f:
             result = f.read()
         self.assertEqual(code, result)
-
-
-if __name__ == '__main__':
-    unittest.main()
