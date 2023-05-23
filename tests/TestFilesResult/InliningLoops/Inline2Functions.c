@@ -6,7 +6,6 @@ int main()
   int programStep = 1;
   int i;
   int n;
-  int func2;
   int i2;
   int x;
   while (run)
@@ -36,7 +35,7 @@ int main()
         break;
 
       case 4:
-        func2;
+        
         programStep = 5;
         break;
 

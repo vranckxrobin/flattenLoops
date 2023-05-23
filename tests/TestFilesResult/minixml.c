@@ -5,7 +5,6 @@ void parsexml(struct xmlparser *parser)
 {
   bool run = 1;
   int programStep = 1;
-  int parseelt;
   struct xmlparser *p;
   const char *data;
   int i;
@@ -32,7 +31,7 @@ void parsexml(struct xmlparser *parser)
     }
     if (programStep == 3)
     {
-      parseelt;
+      
       programStep = 4;
     }
     if (programStep == 5)
