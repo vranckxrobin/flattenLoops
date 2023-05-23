@@ -309,7 +309,7 @@ class InlineFunctions:
             return ""
         decl = c_ast.Decl(name, None, None, None, None, c_ast.TypeDecl(name, None, None, c_ast.IdentifierType([type])),
                           None,
-                          None)  # TODO replace int with actually function return value if void don't add this variable
+                          None)
         self.newDeclerations.append(decl)
         return name
 
