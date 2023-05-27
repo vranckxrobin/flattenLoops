@@ -47,7 +47,7 @@ void parsexml(struct xmlparser *parser)
     }
     if (programStep == 6)
     {
-      if (((p->xml + 4) <= p->xmlend) && (0 == memcmp(p->xml, "<!--", 4)))
+      if (((p->xml + 4) <= p->xmlend) && ((((p->xml[0] == '<') && (p->xml[1] == '!')) && (p->xml[2] == '-')) && (p->xml[3] == '-')))
       {
         programStep = 7;
       }
@@ -81,7 +81,7 @@ void parsexml(struct xmlparser *parser)
     }
     if (programStep == 10)
     {
-      if (memcmp(p->xml, "-->", 3) != 0)
+      if (((p->xml[0] == '-') && (p->xml[1] == '-')) && (p->xml[2] == '>'))
       {
         programStep = 8;
       }
@@ -267,7 +267,7 @@ void parsexml(struct xmlparser *parser)
     }
     if (programStep == 30)
     {
-      if ((p->xmlend >= (p->xml + (9 + 3))) && (memcmp(p->xml, "<![CDATA[", 9) == 0))
+      if ((p->xmlend >= (p->xml + (9 + 3))) && (((((((((p->xml[0] == '<') && (p->xml[1] == '!')) && (p->xml[2] == '[')) && (p->xml[3] == 'C')) && (p->xml[4] == 'D')) && (p->xml[5] == 'A')) && (p->xml[6] == 'T')) && (p->xml[7] == 'A')) && (p->xml[8] == '[')))
       {
         programStep = 31;
       }
@@ -285,7 +285,7 @@ void parsexml(struct xmlparser *parser)
     }
     if (programStep == 32)
     {
-      if (memcmp(p->xml, "]]>", 3) != 0)
+      if (((p->xml[0] == ']') && (p->xml[1] == ']')) && (p->xml[2] == '>'))
       {
         programStep = 33;
       }

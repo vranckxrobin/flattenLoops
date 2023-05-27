@@ -3,7 +3,7 @@ from localVariablesToTopOfFunction import *
 from flattenLoops import *
 from pycparser import parse_file, c_generator
 import re
-from optimizations import replaceSwitch
+from optimizations import optimize
 
 
 # # Class to get only the function from an abstract syntax tree
@@ -50,7 +50,8 @@ def ASTToCfile(ast, filename, function):
     ast = allLocalVariablesToTopOfFunctions(ast)
     ast = flattenFile(ast)
     ast = inlineFunctions(ast, function)
-    ast = replaceSwitch(ast, function)
+    ast = optimize(ast, function)
+
 
     codeWithoutIncludes = generator.visit(ast)  # Convert abstract syntax tree to C code
 

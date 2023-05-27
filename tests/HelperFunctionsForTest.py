@@ -4,7 +4,7 @@ from flattenLoops import flattenFile
 from inlineFunction import inlineFunctions
 from localVariablesToTopOfFunction import allLocalVariablesToTopOfFunctions
 from main import extractIncludes
-from optimizations import replaceSwitch
+from optimizations import optimize
 
 
 def helperFunctionCreateAst(filename):
@@ -35,7 +35,7 @@ def helperFunctionToTestInlineFunctionAndFlattenLoopsAndLocalVaraiblesToTopOfFun
 
 def helperFunctionToEntireAlgorithmAndOptimizations(filename, function):
     ast = helperFunctionToTestInlineFunctionAndFlattenLoopsAndLocalVaraiblesToTopOfFunction(filename, function)
-    return replaceSwitch(ast, function)
+    return optimize(ast, function)
 
 
 def helperFunctionToTestFlattenLoops(fileName):
@@ -52,4 +52,4 @@ def helperFunctionToTestInliningFunctions(fileName, func):
 def helperFunctionToTestOptimization(fileName, func):
     ast = helperFunctionCreateAst(fileName)
     ast = c_ast.FileAST([func for func in ast.ext if isinstance(func, c_ast.FuncDef)])
-    return replaceSwitch(ast, func)
+    return optimize(ast, func)
